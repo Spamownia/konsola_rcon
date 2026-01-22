@@ -1,0 +1,75 @@
+import os
+import json
+from datetime import datetime
+import time
+import pytz
+from rcon.battleye import Client
+
+# ────────────────────────────────────────────────
+# Konfiguracja z ENV VARS (łatwo edytujesz na Render lub lokalnie)
+RCON_HOST = os.environ.get('RCON_HOST', '127.0.0.1')
+RCON_PORT = int(os.environ.get('RCON_PORT', 2305))
+RCON_PASSWORD = os.environ.get('RCON_PASSWORD', 'TwojeHasloRcon')  # ZMIEŃ NA SWOJE!
+
+TIMEZONE = os.environ.get('TIMEZONE', 'Europe/Warsaw')
+
+# Godziny restartów (lista, np. 0,6,12,18)
+RESTART_HOURS_STR = os.environ.get('RESTART_HOURS', '0,6,12,18')
+RESTART_HOURS = [int(h.strip()) for h in RESTART_HOURS_STR.split(',')]
+
+# Powiadomienia warn (dict minut: tekst, jako JSON string)
+WARNINGS_JSON = os.environ.get('WARNINGS', json.dumps({
+    30: "SERWER RESTART ZA 30 MINUT!",
+    15: "SERWER RESTART ZA 15 MINUT!",
+    10: "SERWER RESTART ZA 10 MINUT!",
+    5:  "SERWER RESTART ZA 5 MINUT!",
+    2:  "SERWER RESTART ZA 2 MINUTY!",
+    1:  "SERWER RESTART ZA 1 MINUTĘ!"
+}))
+WARNY = json.loads(WARNINGS_JSON)
+
+# Wiadomość o restarcie (o dokładnej godzinie)
+SHUTDOWN_MESSAGE = os.environ.get('SHUTDOWN_MESSAGE', "SERWER RESTARTUJEMY – zapraszamy za chwilę!")
+# ────────────────────────────────────────────────
+
+def send(msg):
+    try:
+        with Client(RCON_HOST, RCON_PORT, passwd=RCON_PASSWORD, timeout=4) as c:
+            c.run("say", "-1", msg)
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Wysłano → {msg}")
+    except Exception as e:
+        print(f"Błąd: {e}")
+
+def main():
+    wyslane_dzis = set()
+
+    while True:
+        now = datetime.now(pytz.timezone(TIMEZONE))
+        h = now.hour
+        m = now.minute
+
+        # Restart message o dokładnej godzinie
+        if h in RESTART_HOURS and m == 0:
+            send(SHUTDOWN_MESSAGE)
+            time.sleep(65)  # poczekaj minutę, żeby nie spamować
+
+        # Warn przed restartem (dla każdej możliwej godziny restartu)
+        for minuty, tekst in WARNY.items():
+            # Oblicz docelową godzinę restartu (następną po bieżącej)
+            next_restart_h = next((rh for rh in sorted(RESTART_HOURS) if rh > h), RESTART_HOURS[0] + 24) % 24
+            if (h == (next_restart_h - 1 if minuty > m else next_restart_h) % 24) and m == (60 - minuty if minuty <= 60 else 0):
+                klucz = f"{h:02d}-{minuty}"
+                if klucz not in wyslane_dzis:
+                    send(tekst)
+                    wyslane_dzis.add(klucz)
+
+        time.sleep(30)  # sprawdzaj co 30 sekund
+
+        # Reset listy o północy
+        if h == 0 and m == 0:
+            wyslane_dzis.clear()
+
+if __name__ == "__main__":
+    print("DayZ Restart Announcer uruchomiony...")
+    print(f"Konfiguracja: Godziny restartów: {RESTART_HOURS}, Strefa: {TIMEZONE}")
+    main()
