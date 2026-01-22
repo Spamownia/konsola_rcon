@@ -1,0 +1,22 @@
+services:
+  - type: worker  # Background Worker
+    name: dayz-rcon-announcer
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python dayz_restart_announcer.py
+    envVars:
+      - key: RCON_HOST
+        value: 127.0.0.1  # przykład, zmień w dashboardzie
+      - key: RCON_PORT
+        value: 2305
+      - key: RCON_PASSWORD
+        sync: false  # hasło – wpisz ręcznie w dashboardzie dla bezpieczeństwa
+      - key: TIMEZONE
+        value: Europe/Warsaw
+      - key: RESTART_HOURS
+        value: 0,6,12,18
+      - key: WARNINGS
+        value: '{"30": "SERWER RESTART ZA 30 MINUT!", "15": "SERWER RESTART ZA 15 MINUT!", "10": "SERWER RESTART ZA 10 MINUT!", "5": "SERWER RESTART ZA 5 MINUT!", "2": "SERWER RESTART ZA 2 MINUTY!", "1": "SERWER RESTART ZA 1 MINUTĘ!"}'
+      - key: SHUTDOWN_MESSAGE
+        value: SERWER RESTARTUJEMY – zapraszamy za chwilę!
+    autoDeploy: true
